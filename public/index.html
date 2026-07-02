@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClickHouse DAS 治理平台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">CH</div>
+          <div>
+            <strong>ClickHouse DAS</strong>
+            <span>数据治理平台</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="主导航">
+          <button class="nav-item active" type="button" data-view="audit">
+            <span class="icon" aria-hidden="true">⌕</span>
+            SQL 审计
+          </button>
+          <button class="nav-item" type="button" data-view="slow">
+            <span class="icon" aria-hidden="true">⌁</span>
+            慢 SQL
+          </button>
+          <button class="nav-item" type="button" disabled>
+            <span class="icon" aria-hidden="true">▣</span>
+            权限治理
+          </button>
+          <button class="nav-item" type="button" disabled>
+            <span class="icon" aria-hidden="true">◇</span>
+            风险规则
+          </button>
+          <button class="nav-item" type="button" disabled>
+            <span class="icon" aria-hidden="true">◴</span>
+            资产画像
+          </button>
+        </nav>
+
+        <div class="connection-panel">
+          <span class="label">连接状态</span>
+          <div class="connection-row">
+            <span id="status-dot" class="status-dot pending"></span>
+            <strong id="connection-text">检测中</strong>
+          </div>
+          <p id="connection-meta">223.109.49.64:9930 / clickhouse</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div id="audit-view" class="view-content">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">SQL EXECUTION AUDIT</span>
+            <h1>SQL 执行记录审计</h1>
+          </div>
+          <div class="top-actions">
+            <button id="refresh-btn" class="icon-button" type="button" title="刷新">
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="hero-strip" aria-label="治理概览">
+          <div>
+            <span>审计范围</span>
+            <strong>system.query_log</strong>
+          </div>
+          <div>
+            <span>默认窗口</span>
+            <strong>最近 24 小时</strong>
+          </div>
+          <div>
+            <span>数据源</span>
+            <strong>ClickHouse</strong>
+          </div>
+        </section>
+
+        <section class="filters" aria-label="审计筛选">
+          <label>
+            开始时间
+            <input id="from" type="datetime-local" />
+          </label>
+          <label>
+            结束时间
+            <input id="to" type="datetime-local" />
+          </label>
+          <label>
+            数据库
+            <select id="database">
+              <option value="">全部库</option>
+            </select>
+          </label>
+          <label>
+            用户
+            <input id="user" type="text" placeholder="全部用户" />
+          </label>
+          <label>
+            关键字
+            <input id="keyword" type="text" placeholder="SQL 片段" />
+          </label>
+          <label>
+            IP
+            <input id="ip" type="text" placeholder="172.17.0.1" />
+          </label>
+          <label>
+            状态
+            <select id="status">
+              <option value="">全部</option>
+              <option value="success">成功</option>
+              <option value="error">失败</option>
+            </select>
+          </label>
+          <button id="search-btn" class="primary-button" type="button">查询</button>
+        </section>
+
+        <section class="metric-grid" aria-label="审计指标">
+          <article class="metric">
+            <span>执行总数</span>
+            <strong id="metric-total">--</strong>
+          </article>
+          <article class="metric accent-red">
+            <span>失败次数</span>
+            <strong id="metric-failed">--</strong>
+          </article>
+          <article class="metric accent-amber">
+            <span>平均耗时</span>
+            <strong id="metric-avg">--</strong>
+          </article>
+          <article class="metric accent-green">
+            <span>读取行数</span>
+            <strong id="metric-rows">--</strong>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <div class="panel audit-panel">
+            <div class="panel-header">
+              <div>
+                <h2>审计明细</h2>
+                <span id="result-count">等待查询</span>
+              </div>
+              <select id="limit" aria-label="每页条数">
+                <option value="50">50 条</option>
+                <option value="100" selected>100 条</option>
+                <option value="200">200 条</option>
+                <option value="500">500 条</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>IP</th>
+                    <th>用户</th>
+                    <th>库</th>
+                    <th>类型</th>
+                    <th>耗时</th>
+                    <th>读取</th>
+                    <th>状态</th>
+                    <th>SQL</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-body">
+                  <tr>
+                    <td colspan="9" class="empty">正在加载审计数据</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside class="panel user-panel">
+            <div class="panel-header">
+              <div>
+                <h2>活跃用户</h2>
+                <span>按执行次数排序</span>
+              </div>
+            </div>
+            <div id="user-list" class="user-list"></div>
+          </aside>
+        </section>
+        </div>
+
+        <div id="slow-view" class="view-content hidden">
+          <header class="topbar">
+            <div>
+              <span class="eyebrow">SLOW SQL BOARD</span>
+              <h1>慢 SQL 看板</h1>
+            </div>
+            <div class="top-actions">
+              <button id="slow-refresh-btn" class="icon-button" type="button" title="刷新">
+                <span aria-hidden="true">↻</span>
+              </button>
+            </div>
+          </header>
+
+          <section class="hero-strip" aria-label="慢 SQL 定位">
+            <div>
+              <span>排查入口</span>
+              <strong>最慢模板</strong>
+            </div>
+            <div>
+              <span>默认阈值</span>
+              <strong>1000ms</strong>
+            </div>
+            <div>
+              <span>排序依据</span>
+              <strong>最大耗时</strong>
+            </div>
+          </section>
+
+          <section class="filters" aria-label="慢 SQL 筛选">
+            <label>
+              开始时间
+              <input id="slow-from" type="datetime-local" />
+            </label>
+            <label>
+              结束时间
+              <input id="slow-to" type="datetime-local" />
+            </label>
+            <label>
+              数据库
+              <select id="slow-database">
+                <option value="">全部库</option>
+              </select>
+            </label>
+            <label>
+              用户
+              <input id="slow-user" type="text" placeholder="全部用户" />
+            </label>
+            <label>
+              IP
+              <input id="slow-ip" type="text" placeholder="172.17.0.1" />
+            </label>
+            <label>
+              最小耗时
+              <input id="slow-threshold" type="number" min="1" step="100" value="1000" />
+            </label>
+            <label>
+              关键字
+              <input id="slow-keyword" type="text" placeholder="表名 / SQL 片段" />
+            </label>
+            <button id="slow-search-btn" class="primary-button" type="button">查询</button>
+          </section>
+
+          <section class="metric-grid" aria-label="慢 SQL 指标">
+            <article class="metric accent-red">
+              <span>慢 SQL 数</span>
+              <strong id="slow-total">--</strong>
+            </article>
+            <article class="metric accent-amber">
+              <span>P95 耗时</span>
+              <strong id="slow-p95">--</strong>
+            </article>
+            <article class="metric">
+              <span>最大耗时</span>
+              <strong id="slow-max">--</strong>
+            </article>
+            <article class="metric accent-green">
+              <span>扫描行数</span>
+              <strong id="slow-rows">--</strong>
+            </article>
+          </section>
+
+          <section class="slow-layout">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>问题 SQL 模板</h2>
+                  <span id="slow-fingerprint-count">按最大耗时排序</span>
+                </div>
+              </div>
+              <div id="slow-fingerprints" class="fingerprint-list"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>最慢明细</h2>
+                  <span id="slow-record-count">等待查询</span>
+                </div>
+                <select id="slow-limit" aria-label="慢 SQL 条数">
+                  <option value="20">20 条</option>
+                  <option value="50" selected>50 条</option>
+                  <option value="100">100 条</option>
+                  <option value="200">200 条</option>
+                </select>
+              </div>
+              <div class="table-wrap slow-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>耗时</th>
+                      <th>库</th>
+                      <th>用户</th>
+                      <th>IP</th>
+                      <th>扫描</th>
+                      <th>内存</th>
+                      <th>SQL</th>
+                    </tr>
+                  </thead>
+                  <tbody id="slow-body">
+                    <tr>
+                      <td colspan="8" class="empty">正在加载慢 SQL 数据</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="sql-dialog">
+      <form method="dialog">
+        <div class="dialog-header">
+          <h2>SQL 明细</h2>
+          <button class="icon-button" value="close" title="关闭">×</button>
+        </div>
+        <pre id="sql-detail"></pre>
+      </form>
+    </dialog>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
